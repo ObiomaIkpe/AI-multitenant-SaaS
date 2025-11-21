@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 
+.embedding_cache/
 .env
 
 qdrant_storage/ 
