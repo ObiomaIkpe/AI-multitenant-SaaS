@@ -429,7 +429,7 @@ async def ask_question(
 
     try:
         Settings.llm = Gemini(
-            model="gemini-2.0-flash-exp",
+            model="gemini-2.0-flash",
             api_key=settings.GEMINI_API_KEY
         )
 
@@ -464,13 +464,18 @@ async def ask_question(
         # Extract sources with rich metadata
         sources = []
         for node in response.source_nodes:
+            # Convert score to native Python float if it exists
+            score = None
+            if hasattr(node, 'score') and node.score is not None:
+                score = float(node.score)  # Convert numpy.float32 to Python float
+            
             source_info = {
                 "document_id": node.metadata.get("document_id", "N/A"),
                 "file_name": node.metadata.get("file_name", "N/A"),
                 "category": node.metadata.get("category", "uncategorized"),
                 "tags": node.metadata.get("tags", []),
                 "content_preview": node.text[:200] + "...",
-                "score": node.score if hasattr(node, 'score') else None
+                "score": score
             }
             sources.append(source_info)
 
