@@ -1,0 +1,4 @@
+This is a test document about Python programming. 
+Python is a high-level programming language.
+It is used for web development, data science, and automation.
+Python has simple syntax and is beginner-friendly.

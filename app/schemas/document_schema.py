@@ -22,9 +22,12 @@ class DocumentUploadRequest(BaseModel):
 # Response Schema: After Upload
 # ---------------------------------------
 class DocumentUploadResponse(BaseModel):
-    id: str
+    status: str
+    document_id: str
     filename: str
-    status: DocumentStatus
+    file_size: int
+    chunks_created: int
+    metadata: dict
 
 
 # ---------------------------------------
