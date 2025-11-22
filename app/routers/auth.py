@@ -4,10 +4,10 @@ from datetime import datetime, timedelta
 from jose import jwt
 
 from app.database import get_db
-from app.schemas.auth import UserRegister, UserLogin, Token, UserResponse
+from app.schemas.auth_schema import UserRegister, UserLogin, Token, UserResponse
 from app.crud.user import create_user_with_tenant, authenticate_user, get_user_by_email
 from app.core.config import settings
-from app.core.security import get_current_tenant_id  # MOVED HERE
+from app.core.security import get_current_tenant_id
 
 router = APIRouter()
 
@@ -16,9 +16,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     """Generate JWT token"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -99,7 +99,7 @@ async def get_current_user_info(
     Get current user's information.
     Requires valid JWT token.
     """
-    from app.models.user import Tenant
+    from app.models.document import Tenant
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 

@@ -1,8 +1,9 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, Enum as SQLEnum, Text, Boolean, DateTime
+from sqlalchemy import Column, String, Integer, ForeignKey, Enum as SQLEnum, Text, Boolean, DateTime, JSON
 from sqlalchemy.orm import relationship
 from .base import Base, TimestampMixin
-import enum
+from .enums import DocumentStatus
 import uuid
+from datetime import datetime
 
 def generate_uuid():
     return str(uuid.uuid4())
@@ -41,11 +42,6 @@ class Tenant(Base, TimestampMixin):
         return f"<Tenant {self.name}>"
 
 
-class DocumentStatus(enum.Enum):
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
 
 class Document(Base, TimestampMixin):
     __tablename__ = "documents"
@@ -62,8 +58,27 @@ class Document(Base, TimestampMixin):
     
     processed_at = Column(DateTime, nullable=True)
     
+    # --- NEW: Metadata fields for filtering ---
+    category = Column(String, nullable=True, index=True)
+    tags = Column(JSON, default=list, nullable=False)
+    description = Column(Text, nullable=True)
+    
     # Relationship
     tenant = relationship("Tenant", back_populates="documents")
     
     def __repr__(self):
         return f"<Document {self.filename} - {self.status.value}>"
+    
+    def to_metadata_dict(self):
+        """Convert to metadata dict for Qdrant ingestion"""
+        return {
+            "tenant_id": self.tenant_id,
+            "document_id": self.id,
+            "file_name": self.filename,
+            "file_type": self.file_type,
+            "file_size": self.file_size,
+            "category": self.category,
+            "tags": self.tags or [],
+            "upload_date": self.created_at.isoformat() if self.created_at else datetime.utcnow().isoformat(),
+            "description": self.description,
+        }

@@ -1,3 +1,18 @@
-from .user import User, Tenant, Document
+# SQLAlchemy Models
+from .document import User, Tenant, Document as DocumentModel
 
-__all__ = ["User", "Tenant", "Document"]
+# Enums  
+from .enums import DocumentStatus
+
+
+__all__ = [
+    # Database Models
+    "User",
+    "Tenant",
+    "DocumentModel",  # SQLAlchemy model
+    
+    # Enums
+    "DocumentStatus",
+    
+    
+]

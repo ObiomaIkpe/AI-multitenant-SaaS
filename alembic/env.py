@@ -6,7 +6,7 @@ from alembic import context
 
 # Import your models and config
 from app.models.base import Base
-from app.models.user import User, Tenant, Document  # Import all models
+from app.models.document import User, Tenant, Document  # Import all models
 from app.core.config import settings
 
 # this is the Alembic Config object
