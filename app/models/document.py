@@ -82,3 +82,30 @@ class Document(Base, TimestampMixin):
             "upload_date": self.created_at.isoformat() if self.created_at else datetime.utcnow().isoformat(),
             "description": self.description,
         }
+
+class QueryLog(Base, TimestampMixin):
+    __tablename__ = "query_logs"
+    
+    id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    query_text = Column(Text, nullable=False)
+    
+    # Filters used
+    filters_applied = Column(JSON, default=dict, nullable=False)
+    
+    # Results
+    answer_length = Column(Integer)  # Length of generated answer
+    sources_count = Column(Integer)  # Number of sources retrieved
+    
+    # Performance
+    response_time_ms = Column(Integer)  # Query execution time
+    
+    # Status
+    success = Column(Boolean, default=True)
+    error_message = Column(Text, nullable=True)
+    
+    # Relationship
+    tenant = relationship("Tenant")
+    
+    def __repr__(self):
+        return f"<QueryLog {self.id} - Tenant {self.tenant_id}>"
