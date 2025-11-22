@@ -1,3 +1,4 @@
+from app.routers import webhooks
 from app.routers import admin
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
@@ -46,6 +47,7 @@ app = FastAPI(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(ingestion.router, prefix="/api/v1/ingestion", tags=["Ingestion"])
 app.include_router(query.router, prefix="/api/v1/query", tags=["Query"])
+app.include_router(webhooks.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 
 

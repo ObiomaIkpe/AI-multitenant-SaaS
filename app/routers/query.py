@@ -18,7 +18,7 @@ from app.dependencies.common import get_qdrant_client_dependency, get_async_qdra
 from app.core.security import get_current_tenant_id
 from app.database import get_db
 from app.core.config import settings
-from app.models.document import Document, Tenant, User
+from app.models.document import Document, Tenant, User, QueryLog
 from app.models.enums import DocumentStatus
 from app.schemas.document_schema import (
     DocumentUploadRequest,
@@ -153,6 +153,19 @@ async def upload_document(
         db_document.chunk_count = len(nodes)
         db_document.processed_at = datetime.utcnow()
         await db.commit()
+
+        # ← Trigger webhook
+        from app.utils.webhooks import trigger_webhook
+        await trigger_webhook(
+        db=db,
+        tenant_id=tenant_id,
+        event="document.uploaded",
+        payload={
+        "document_id": db_document.id,
+        "filename": db_document.filename,
+        "chunks_created": len(nodes)
+    }
+)
         
         return DocumentUploadResponse(
             status="success",
@@ -172,6 +185,18 @@ async def upload_document(
                 db_document.status = DocumentStatus.FAILED
                 db_document.error_message = str(e)
                 await db.commit()
+
+                from app.utils.webhooks import trigger_webhook
+                await trigger_webhook(
+                    db=db,
+                    tenant_id=tenant_id,
+                    event="document.failed",
+                    payload={
+                    "document_id": db_document.id,
+                    "filename": db_document.filename,
+                    "error": str(e)
+                    }
+                )    
             except:
                 await db.rollback()
         
@@ -418,7 +443,8 @@ async def ask_question(
     request: QueryRequest,
     tenant_id: str = Depends(get_current_tenant_id),
     qdrant_client = Depends(get_qdrant_client_dependency), 
-    async_qdrant_client = Depends(get_async_qdrant_client_dependency) 
+    async_qdrant_client = Depends(get_async_qdrant_client_dependency), 
+    db: AsyncSession = Depends(get_db)
 ):
     """Query documents with optional filtering"""
     if not settings.GEMINI_API_KEY:
@@ -426,6 +452,9 @@ async def ask_question(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail="GEMINI_API_KEY not configured"
         )
+    
+    start_time = datetime.now()
+    
 
     try:
         Settings.llm = Gemini(
@@ -478,6 +507,22 @@ async def ask_question(
                 "score": score
             }
             sources.append(source_info)
+        answer = str(response)
+
+        end_time = datetime.now()
+        response_time = int((end_time - start_time).total_seconds() * 1000)
+
+        query_log = QueryLog(
+            tenant_id=tenant_id,
+            query_text=request.query,
+            filters_applied=get_applied_filters_summary(request),
+            answer_length=len(answer),
+            sources_count=len(sources),
+            response_time_ms=response_time,
+            success=True
+        )
+        db.add(query_log)
+        await db.commit()
 
         return QueryResponse(
             answer=str(response),
@@ -486,6 +531,22 @@ async def ask_question(
         )
 
     except Exception as e:
+
+        end_time = datetime.utcnow()
+        response_time = int((end_time - start_time).total_seconds() * 1000)
+        query_log = QueryLog(
+            tenant_id=tenant_id,
+            query_text=request.query,
+            filters_applied=get_applied_filters_summary(request),
+            answer_length=len(answer),
+            sources_count=len(sources),
+            response_time_ms=response_time,
+            success=False,
+            error_message=str(e)
+        )
+        db.add(query_log)
+        await db.commit()
+
         print(f"Query Error for Tenant {tenant_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

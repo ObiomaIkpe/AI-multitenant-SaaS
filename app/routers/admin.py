@@ -134,3 +134,104 @@ async def delete_tenant(
     
     return {"status": "success", "message": f"Tenant {tenant_id} deleted"}
 
+from app.models.document import QueryLog
+
+# Get query analytics
+@router.get("/analytics/queries")
+async def get_query_analytics(
+    tenant_id: Optional[str] = None,
+    days: int = 30,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get query analytics (optionally filtered by tenant)"""
+    from datetime import timedelta
+    
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    
+    # Build query
+    stmt = select(QueryLog).where(QueryLog.created_at >= cutoff_date)
+    if tenant_id:
+        stmt = stmt.where(QueryLog.tenant_id == tenant_id)
+    
+    result = await db.execute(stmt)
+    logs = result.scalars().all()
+    
+    # Calculate stats
+    total_queries = len(logs)
+    successful_queries = sum(1 for log in logs if log.success)
+    failed_queries = total_queries - successful_queries
+    avg_response_time = sum(log.response_time_ms for log in logs if log.response_time_ms) / total_queries if total_queries > 0 else 0
+    
+    return {
+        "period_days": days,
+        "total_queries": total_queries,
+        "successful_queries": successful_queries,
+        "failed_queries": failed_queries,
+        "success_rate": round(successful_queries / total_queries * 100, 2) if total_queries > 0 else 0,
+        "avg_response_time_ms": round(avg_response_time, 2)
+    }
+
+
+# Get queries over time
+@router.get("/analytics/queries-over-time")
+async def get_queries_over_time(
+    tenant_id: Optional[str] = None,
+    days: int = 7,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get query count grouped by date"""
+    from datetime import timedelta
+    from collections import defaultdict
+    
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    
+    stmt = select(QueryLog).where(QueryLog.created_at >= cutoff_date)
+    if tenant_id:
+        stmt = stmt.where(QueryLog.tenant_id == tenant_id)
+    
+    result = await db.execute(stmt)
+    logs = result.scalars().all()
+    
+    # Group by date
+    queries_by_date = defaultdict(int)
+    for log in logs:
+        date_key = log.created_at.date().isoformat()
+        queries_by_date[date_key] += 1
+    
+    return {
+        "period_days": days,
+        "data": [{"date": date, "count": count} for date, count in sorted(queries_by_date.items())]
+    }
+
+
+# Get popular documents
+@router.get("/analytics/popular-documents")
+async def get_popular_documents(
+    tenant_id: Optional[str] = None,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get most queried documents"""
+    from collections import Counter
+    
+    stmt = select(QueryLog)
+    if tenant_id:
+        stmt = stmt.where(QueryLog.tenant_id == tenant_id)
+    
+    result = await db.execute(stmt)
+    logs = result.scalars().all()
+    
+    # Count document mentions in filters
+    doc_counter = Counter()
+    for log in logs:
+        filters = log.filters_applied or {}
+        if "document_ids" in filters:
+            for doc_id in filters["document_ids"]:
+                doc_counter[doc_id] += 1
+    
+    return {
+        "popular_documents": [
+            {"document_id": doc_id, "query_count": count}
+            for doc_id, count in doc_counter.most_common(limit)
+        ]
+    }

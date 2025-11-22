@@ -109,3 +109,31 @@ class QueryLog(Base, TimestampMixin):
     
     def __repr__(self):
         return f"<QueryLog {self.id} - Tenant {self.tenant_id}>"
+    
+
+class WebhookEvent(str, enum.Enum):
+    DOCUMENT_UPLOADED = "document.uploaded"
+    DOCUMENT_FAILED = "document.failed"
+    QUOTA_REACHED = "quota.reached"
+    TENANT_SUSPENDED = "tenant.suspended"
+
+class Webhook(Base, TimestampMixin):
+    __tablename__ = "webhooks"
+    
+    id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    url = Column(String, nullable=False)
+    events = Column(JSON, nullable=False)  # List of events to subscribe to
+    secret = Column(String, nullable=False)  # For signature verification
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    # Stats
+    last_triggered_at = Column(DateTime, nullable=True)
+    total_deliveries = Column(Integer, default=0)
+    failed_deliveries = Column(Integer, default=0)
+    
+    # Relationship
+    tenant = relationship("Tenant")
+    
+    def __repr__(self):
+        return f"<Webhook {self.id} - {self.url}>"
